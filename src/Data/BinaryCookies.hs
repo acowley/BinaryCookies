@@ -55,7 +55,7 @@ instance Show Cookie where
 cookieText :: Text -> Cookie -> Text
 cookieText d (Cookie p e n v f) = T.intercalate "\t"
                                                 [d,"TRUE",p,s,e',n,v]
-  where e' = T.pack $ show (utcTimeToPOSIXSeconds e)
+  where e' = T.pack . init $ show (utcTimeToPOSIXSeconds e)
         s = case f of
               Secure -> "TRUE"
               SecureHttp -> "TRUE"
