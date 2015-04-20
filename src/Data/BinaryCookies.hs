@@ -66,8 +66,9 @@ cookies :: Text -> S.Seq Cookie -> Text
 cookies d = T.intercalate "\n" . map (cookieText d) . F.toList
 
 -- | Lookup and format all cookies for a given domain.
-cookiesFor :: Text -> Map Text (S.Seq Cookie) -> Text
-cookiesFor d = maybe T.empty (cookies d) . M.lookup d
+cookiesFor :: [Text] -> Map Text (S.Seq Cookie) -> Text
+cookiesFor ds m = T.intercalate "\n" ("# Netscape HTTP Cookie File" : map go ds)
+  where go d = maybe T.empty (cookies d) $ M.lookup d m
 
 -- * Parsing
 
