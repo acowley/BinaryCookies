@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
--- | @binarycookies@ format documented at <http://www.securitylearn.net/2012/10/27/cookies-binarycookies-reader/>
+-- | @binarycookies@ format documented <http://www.securitylearn.net/2012/10/27/cookies-binarycookies-reader/ here> and <http://it.toolbox.com/blogs/locutus/understanding-the-safari-cookiesbinarycookies-file-format-49980 here>
 module Data.BinaryCookies (Cookie(..), Flags(..),
                            cookieText, cookies, cookiesFor,
                            cookieFile, parseCookies) where
 import Control.Applicative ((<*), (<$>))
-import Control.Monad (replicateM_, unless)
+import Control.Monad (replicateM_, unless, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except
 import Data.Binary.Get
@@ -23,7 +23,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.Time.Format
 import qualified Data.Vector as V
-import System.Locale (defaultTimeLocale)
+import qualified Data.Vector.Unboxed as VU
 import Unsafe.Coerce (unsafeCoerce)
 
 -- * Types
@@ -35,12 +35,15 @@ data CookieU = CookieU { _url        :: !Text
                        , _value      :: !Text
                        , _flags      :: !Flags }
 
+-- | A value storing cookie components, intended to be paired with the
+-- URL of its origin.
 data Cookie = Cookie { path       :: !Text
                      , expiration :: !UTCTime
                      , name       :: !Text
                      , value      :: !Text
                      , flags      :: !Flags }
 
+-- | Cookie security flags.
 data Flags = NoFlag | Secure | HttpOnly | SecureHttp deriving Show
 
 instance Show Cookie where
@@ -109,10 +112,19 @@ cookie = do _size <- getInt <* getInt
             _pathOffset <- getInt
             _valueOffset <- getInt
             eoc <- lift $ getWord64host
-            unless (eoc == 0)
-                   (throwE $ "Missing end-of-cookie: "++show eoc)
+            -- unless (eoc == 0)
+            --        (throwE $ "Missing end-of-cookie: "++show eoc)
             expirationDate <- lift macTime
             _creationDate <- lift macTime
+
+            -- Newer versions of Safari (> 8.0.6) sometimes have an
+            -- extra, unknown field with the cookie. This is
+            -- detectable through the traditional end-of-cookie
+            -- marker, which used to be eight zero bytes, but may now
+            -- store an offset to this new field and then four zero
+            -- bytes. We skip over this other field.
+            when (eoc /= 0) . lift $ 
+              replicateM_ ((_urlOffset - 56) `quot` 4) getWord32host
             url' <- getNulText
             name' <- getNulText
             path' <- getNulText
